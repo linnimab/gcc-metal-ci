@@ -1,0 +1,161 @@
+name: build-metal-ipa
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      APP_NAME: GoodColorCam
+      BUNDLE_ID: com.gcc.goodcolorcam.metal
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -e
+          for XC in /Applications/Xcode_15.4.app /Applications/Xcode_15.3.app /Applications/Xcode_15.2.app; do
+            if [ -d "$XC" ]; then sudo xcode-select -s "$XC"; break; fi
+          done
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Show source inventory
+        run: |
+          echo "--- src ---"
+          ls -la src/ | head -50
+          echo "--- resources ---"
+          if [ -d RESOURCES/effect ]; then
+            echo "effect files: $(find RESOURCES/effect -type f | wc -l)"
+            du -sh RESOURCES/effect
+          else
+            echo "::error::RESOURCES/effect missing"
+            exit 1
+          fi
+          echo "--- metal ---"
+          ls -lh src/*.metal
+
+      - name: Assemble Xcode project
+        run: |
+          set -e
+          mkdir -p GoodColorCam.xcodeproj
+          # 纯 Metal 架构：整套 src/*.m/.c/.metal 全编。
+          # 不嵌任何官方 vendor 库；effect_dynamic.c 的 constructor 会自动装
+          # no-op 桩，bef_init 在无库时安全返回，Metal 渲染链完全独立。
+          # test_mesh.c 带 main()，用 GCC_STANDALONE_TEST 守卫，排除。
+          SRC=$(ls src/*.m src/*.c src/*.metal 2>/dev/null | grep -v 'src/test_mesh.c' | tr '\n' ' ')
+          echo "sources: $SRC"
+          [ -n "$SRC" ] || { echo "::error::no sources"; exit 1; }
+          python3 scripts/gen_pbxproj.py \
+            --out GoodColorCam.xcodeproj/project.pbxproj \
+            --src $SRC \
+            --resource-folder RESOURCES/effect \
+            --bundle-id "$BUNDLE_ID" \
+            --app-name "$APP_NAME"
+
+      - name: Build unsigned
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project GoodColorCam.xcodeproj \
+            -scheme "$APP_NAME" \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build.log
+
+      - name: Verify binary
+        run: |
+          APP_DIR=$(find build/Build/Products -name '*.app' -type d | head -1)
+          echo "app: $APP_DIR"
+          [ -n "$APP_DIR" ] || { echo "::error::no .app"; exit 1; }
+          APP_BIN="$APP_DIR/$APP_NAME"
+          echo "--- linked dylibs (should be system-only) ---"
+          otool -L "$APP_BIN" || true
+          echo "--- metallib present? ---"
+          find "$APP_DIR" -name '*.metallib' -o -name 'default.metallib' | head -5
+          echo "--- LC_RPATH ---"
+          otool -l "$APP_BIN" | grep -A2 LC_RPATH | grep path || true
+
+      - name: Package unsigned IPA
+        run: |
+          set -e
+          APP_DIR=$(find build/Build/Products -name '*.app' -type d | head -1)
+          rm -rf Payload && mkdir -p Payload
+          cp -R "$APP_DIR" Payload/
+          # 无 vendored framework，纯系统框架 + Metal
+          python3 - <<'PY'
+          import zipfile, os
+          out = os.environ.get('IPA','GoodColorCam-metal-unsigned.ipa')
+          with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+              for r,ds,fs in os.walk('Payload'):
+                  for f in fs:
+                      p=os.path.join(r,f)
+                      z.write(p,p)
+          print('packed',os.path.getsize(out))
+          PY
+          ls -lh GoodColorCam-metal-unsigned.ipa
+
+      - name: Ad-hoc sign (plain, no entitlements)
+        run: |
+          set -e
+          # 纯 Metal 包无 vendor dylib，只需主程序 ad-hoc 伪签
+          # 便于越狱设备 / 自签工具直接安装；未越狱需自行用证书重签。
+          WORK=$(mktemp -d)
+          cd "$WORK"
+          unzip -q "$GITHUB_WORKSPACE/GoodColorCam-metal-unsigned.ipa" -d app
+          /usr/bin/codesign --force --sign - --timestamp=none \
+            --bundle-id "$BUNDLE_ID" \
+            "$(find app/Payload -maxdepth 1 -name '*.app' -type d | head -1)" 2>&1 | tail -5 || true
+          cd app
+          python3 - <<'PY'
+          import zipfile, os
+          with zipfile.ZipFile(os.environ['IPA_OUT'],'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+              for r,ds,fs in os.walk('Payload'):
+                  for f in fs:
+                      p=os.path.join(r,f); z.write(p,p)
+          print('repacked',os.path.getsize(os.environ['IPA_OUT']))
+          PY
+          ls -lh "$IPA_OUT"
+        env:
+          IPA_OUT: ${{ github.workspace }}/GoodColorCam-metal-adhoc.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-metal-ipa
+          path: |
+            GoodColorCam-metal-unsigned.ipa
+            GoodColorCam-metal-adhoc.ipa
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Publish to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="metal-$(echo ${{ github.sha }} | cut -c1-7)"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" \
+            GoodColorCam-metal-unsigned.ipa \
+            GoodColorCam-metal-adhoc.ipa \
+            --title "Metal IPA ($TAG)" \
+            --notes "Pure Metal build. No AwemeCore / EffectSDK / vendor dylibs. Ad-hoc signed for jailbroken devices; re-sign with your own certificate for stock iOS." \
+            --prerelease
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
