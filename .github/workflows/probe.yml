@@ -1,0 +1,9 @@
+name: quota-probe
+on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-15
+    steps:
+      - name: hello
+        run: echo "HOSTED RUNNER OK"; xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version
