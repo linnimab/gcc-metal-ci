@@ -3,16 +3,12 @@ name: build-metal-ipa
 on:
   workflow_dispatch:
 
-concurrency:
-  group: metal-ipa-build
-  cancel-in-progress: true
-
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 25
     env:
       APP_NAME: GoodColorCam
