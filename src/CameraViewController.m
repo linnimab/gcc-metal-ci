@@ -39,6 +39,7 @@
 #import "slot_panel.h"        // ★ GccSlotPanel —— 51 根滑条原生 UI
 
 #import "color_fx.h"          // 调色 6 项 + 官方 LUT 滤镜
+#import "gcc_makeup_map.h"     // ★ GCC_MAKEUP_PRESETS / GCC_MK_*（妆容色号表）
 
 extern const char *gcc_engine_error(void);   // 运行时引擎挂载诊断
 
@@ -302,7 +303,8 @@ extern const char *gcc_engine_error(void);   // 运行时引擎挂载诊断
 
     bef_shutdown();
 
-    self.faceReq.completionHandler = nil;   // 防止析构后回调再进来
+    // VNRequest.completionHandler 是 readonly；释放整个 request 即可。
+    self.faceReq = nil;
     free(self.facePoints);
     self.facePoints = NULL;
     self.facePointCount = 0;
@@ -730,9 +732,10 @@ extern const char *gcc_engine_error(void);   // 运行时引擎挂载诊断
 
     CGRect bb = face.boundingBox;
     // pointsInImage 返回 const CGPoint*（Vision 内部用 simd，公开头是 CGPoint）
-    const CGPoint *pts = (const CGPoint *)face.landmarks.allPoints.pointsInImage;
-    NSUInteger n = face.landmarks.allPoints.pointCount;
-    if (!pts || n == 0) return;
+    // VNFaceLandmarkRegion2D 公开 API：normalizedPoints（相对人脸框 0..1）。
+    NSArray<NSValue *> *norm = face.landmarks.allPoints.normalizedPoints;
+    NSUInteger n = norm.count;
+    if (n == 0) return;
 
     int cap = (int)(n * 2);
     if (cap > 256) cap = 256;
@@ -740,8 +743,9 @@ extern const char *gcc_engine_error(void);   // 运行时引擎挂载诊断
     if (!buf) return;
 
     for (int i = 0; i < cap / 2; i++) {
-        float x = bb.origin.x + pts[i].x * bb.size.width;
-        float y = 1.0f - (bb.origin.y + pts[i].y * bb.size.height);
+        CGPoint q = [norm[(NSUInteger)i] CGPointValue];   // 相对人脸框，原点左下
+        float x = bb.origin.x + q.x * bb.size.width;
+        float y = 1.0f - (bb.origin.y + q.y * bb.size.height);
         buf[i*2]     = x;
         buf[i*2 + 1] = y;
     }
