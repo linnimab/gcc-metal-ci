@@ -1630,7 +1630,7 @@ static NSString *const kGccKeySlots     = @"gcc.slots";
 
         [self.slotPanel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
 
-        [self.slotPanel.bottomAnchor constraintEqualToAnchor:self.makeupKindSwitch.topAnchor constant:-8],
+        [self.slotPanel.bottomAnchor constraintEqualToAnchor:self.filterSwitch.topAnchor constant:-8],
 
         [self.slotPanel.heightAnchor constraintEqualToConstant:260],
 
@@ -1642,7 +1642,7 @@ static NSString *const kGccKeySlots     = @"gcc.slots";
 
         [self.colorPanel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
 
-        [self.colorPanel.bottomAnchor constraintEqualToAnchor:self.makeupKindSwitch.topAnchor constant:-8],
+        [self.colorPanel.bottomAnchor constraintEqualToAnchor:self.filterSwitch.topAnchor constant:-8],
 
         [self.colorPanel.heightAnchor constraintEqualToConstant:200],
 
