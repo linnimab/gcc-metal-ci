@@ -48,7 +48,7 @@ jobs:
           # 不嵌任何官方 vendor 库；effect_dynamic.c 的 constructor 会自动装
           # no-op 桩，bef_init 在无库时安全返回，Metal 渲染链完全独立。
           # test_mesh.c 带 main()，用 GCC_STANDALONE_TEST 守卫，排除。
-          SRC=$(ls src/*.m src/*.c src/*.metal 2>/dev/null | grep -v 'src/test_mesh.c' | tr '\n' ' ')
+          SRC=$(ls src/*.m src/*.c 2>/dev/null | grep -v 'src/test_mesh.c' | tr '\n' ' ')
           echo "sources: $SRC"
           [ -n "$SRC" ] || { echo "::error::no sources"; exit 1; }
           python3 scripts/gen_pbxproj.py \
@@ -72,6 +72,23 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             build 2>&1 | tee build.log
 
+      - name: Compile Metal shaders
+        run: |
+          set -e
+          APP_DIR=$(find build/Build/Products -name '*.app' -type d | head -1)
+          [ -n "$APP_DIR" ] || { echo "::error::no .app"; exit 1; }
+          echo "--- xcrun metal ---"
+          xcrun -sdk iphoneos metal -c src/gcc_beauty.metal -o /tmp/gcc_beauty.air
+          xcrun -sdk iphoneos metallib /tmp/gcc_beauty.air -o "$APP_DIR/default.metallib"
+          # 源码兜底：运行时 newLibraryWithSource 也能命中（resourceRoot = effect/）
+          cp src/gcc_beauty.metal "$APP_DIR/effect/gcc_beauty.metal"
+          # 图标落进 app 根
+          for f in AppIcon60x60@2x.png AppIcon60x60@3x.png AppIcon1024.png; do
+            [ -f "RESOURCES/$f" ] && cp "RESOURCES/$f" "$APP_DIR/$f" || true
+          done
+          test -f "$APP_DIR/default.metallib" || { echo "::error::default.metallib missing"; exit 1; }
+          ls -lh "$APP_DIR/default.metallib" "$APP_DIR/AppIcon60x60@2x.png"
+
       - name: Verify binary
         run: |
           APP_DIR=$(find build/Build/Products -name '*.app' -type d | head -1)
@@ -81,7 +98,8 @@ jobs:
           echo "--- linked dylibs (should be system-only) ---"
           otool -L "$APP_BIN" || true
           echo "--- metallib present? ---"
-          find "$APP_DIR" -name '*.metallib' -o -name 'default.metallib' | head -5
+          test -f "$APP_DIR/default.metallib" || { echo "::error::default.metallib MISSING"; exit 1; }
+          find "$APP_DIR" -name '*.metallib' | head -5
           echo "--- LC_RPATH ---"
           otool -l "$APP_BIN" | grep -A2 LC_RPATH | grep path || true
 
