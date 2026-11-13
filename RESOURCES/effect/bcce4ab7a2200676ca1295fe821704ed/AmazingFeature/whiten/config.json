@@ -1,0 +1,30 @@
+{
+    "effect": {
+        "exclusiveScene": [
+          {
+            "priority": 11999,
+            "sceneKey": "FaceMakeup*",
+            "tagName": ["EmptyFeature/"]
+          },
+          {
+            "priority": 11999,
+            "sceneKey": "FaceDeformation*",
+            "tagName": ["EmptyFeature/"]
+          },
+          {
+            "priority": 11999,
+            "sceneKey": "FaceBeauty*",
+            "tagName": ["EmptyFeature/"]
+          }
+        ],
+        "Link": [
+            {
+                "path": "EmptyFeature/",
+                "type": "Empty",
+                "zorder": 2000
+            }
+        ]
+    },
+    "name": "099441C3-BF1B-4F1C-98C5-D81B5B771F44",
+    "version": "4.0.0"
+}

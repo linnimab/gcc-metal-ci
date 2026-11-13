@@ -1,0 +1,1 @@
+var TypeEnum;Object.defineProperty(exports,"__esModule",{value:!0}),exports.TypeEnum=void 0,(TypeEnum=exports.TypeEnum||(exports.TypeEnum={})).Texture="Texture",TypeEnum.Color="Color",TypeEnum.Double="Double",TypeEnum.Vector2f="Vector2f",TypeEnum.Vector3f="Vector3f",TypeEnum.Vector4f="Vector4f",TypeEnum.Matrix4x4f="Matrix4x4f",TypeEnum.Material="Material";

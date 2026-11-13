@@ -1,0 +1,32 @@
+# ---- 大文件：不进仓库 ----
+# AwemeCore 是抖音主程序本体（1 GB），只为提供 103 个 NAPI 桥接符号。
+# GitHub 免费账号 LFS 配额 1 GB，推它会把配额吃干净。
+# 本地放 BIN/AwemeCore 即可；CI 里如果缺它会明确报错。
+BIN/AwemeCore
+
+# ---- 构建产物 ----
+build/
+*.ipa
+*.app/
+DerivedData/
+GoodColorCam.xcodeproj/project.xcworkspace/
+GoodColorCam.xcodeproj/xcuserdata/
+
+# ---- 本地语法检查替身（不参与真编译）----
+_syntaxtest/
+
+# ---- Python 缓存 ----
+__pycache__/
+*.pyc
+
+# ---- 系统/编辑器 ----
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# ---- 临时 ----
+*.log
+*.tmp

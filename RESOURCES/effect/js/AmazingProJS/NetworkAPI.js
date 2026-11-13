@@ -1,0 +1,2 @@
+const APJS_Require = globalThis.APJS_Require;
+!function(){"use strict";var e={};!function(){var t,a=e;Object.defineProperty(a,"__esModule",{value:!0}),a.apjsNetTag=a.RequestTaskState=void 0,function(e){e.PENDING="pending",e.SUCCESS="success",e.FAIL="fail",e.ABORT="abort"}(t||(a.RequestTaskState=t={})),a.apjsNetTag="[APJS NETWORK DEBUG]:"}();var t=exports;for(var a in e)t[a]=e[a];e.__esModule&&Object.defineProperty(t,"__esModule",{value:!0})}();

@@ -1,0 +1,1 @@
+Object.defineProperty(exports,"__esModule",{value:!0}),exports.CGSelect=void 0;const ScriptNodeAPI_1=require("../Utils/ScriptNodeAPI");class CGSelect extends ScriptNodeAPI_1.BaseNode{getOutput(e){return!0===this.inputs[0]()?this.inputs[1]():this.inputs[2]()}}exports.CGSelect=CGSelect;
