@@ -3,12 +3,17 @@ name: build-metal-ipa
 on:
   workflow_dispatch:
 
+concurrency:
+  group: metal-ipa-build
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-14
+    timeout-minutes: 25
     env:
       APP_NAME: GoodColorCam
       BUNDLE_ID: com.gcc.goodcolorcam.metal
@@ -87,7 +92,8 @@ jobs:
             [ -f "RESOURCES/$f" ] && cp "RESOURCES/$f" "$APP_DIR/$f" || true
           done
           test -f "$APP_DIR/default.metallib" || { echo "::error::default.metallib missing"; exit 1; }
-          ls -lh "$APP_DIR/default.metallib" "$APP_DIR/AppIcon60x60@2x.png"
+          ls -lh "$APP_DIR/default.metallib" || true
+          ls -lh "$APP_DIR"/AppIcon*.png || true
 
       - name: Verify binary
         run: |
