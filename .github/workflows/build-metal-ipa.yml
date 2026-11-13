@@ -107,25 +107,49 @@ jobs:
       - name: Ad-hoc sign (plain, no entitlements)
         run: |
           set -e
-          # 纯 Metal 包无 vendor dylib，只需主程序 ad-hoc 伪签
-          # 便于越狱设备 / 自签工具直接安装；未越狱需自行用证书重签。
+          # 纯 Metal 包无 vendor dylib，只需主程序 ad-hoc 伪签。
+          # ★ 必须在解压目录「内」签名，再从该目录重打包，
+          #   否则 codesign 生成的 _CodeSignature/CodeResources 不会被带进 IPA。
           WORK=$(mktemp -d)
           cd "$WORK"
-          unzip -q "$GITHUB_WORKSPACE/GoodColorCam-metal-unsigned.ipa" -d app
-          /usr/bin/codesign --force --sign - --timestamp=none \
-            --bundle-id "$BUNDLE_ID" \
-            "$(find app/Payload -maxdepth 1 -name '*.app' -type d | head -1)" 2>&1 | tail -5 || true
-          cd app
+          python3 - <<'PY'
+          import zipfile, os, shutil
+          src = os.environ['IPA_IN']
+          with zipfile.ZipFile(src) as z:
+              for info in z.infolist():
+                  if info.is_dir(): continue
+                  dst = info.filename
+                  os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
+                  with z.open(info) as s, open(dst,'wb') as w:
+                      shutil.copyfileobj(s, w, 1<<20)
+                  mode = (info.external_attr >> 16) & 0o777
+                  if mode & 0o111: os.chmod(dst, (mode | 0o755) & 0o777)
+          print('unpacked')
+          PY
+          APP_DIR=$(find Payload -maxdepth 1 -name '*.app' -type d | head -1)
+          echo "APP_DIR=$APP_DIR"
+          /usr/bin/codesign --force --sign - --timestamp=none "$APP_DIR"
+          echo "--- signature check ---"
+          /usr/bin/codesign -dv "$APP_DIR" 2>&1 | head -8 || true
+          test -f "$APP_DIR/_CodeSignature/CodeResources" || { echo "::error::CodeResources missing"; exit 1; }
           python3 - <<'PY'
           import zipfile, os
-          with zipfile.ZipFile(os.environ['IPA_OUT'],'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+          out = os.environ['IPA_OUT']
+          with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
               for r,ds,fs in os.walk('Payload'):
                   for f in fs:
                       p=os.path.join(r,f); z.write(p,p)
-          print('repacked',os.path.getsize(os.environ['IPA_OUT']))
+          print('repacked',os.path.getsize(out))
           PY
           ls -lh "$IPA_OUT"
+          echo "--- final IPA signature entries ---"
+          python3 - <<'PY'
+          import zipfile, os
+          z=zipfile.ZipFile(os.environ['IPA_OUT'])
+          print([n for n in z.namelist() if '_CodeSignature' in n][:4])
+          PY
         env:
+          IPA_IN: ${{ github.workspace }}/GoodColorCam-metal-unsigned.ipa
           IPA_OUT: ${{ github.workspace }}/GoodColorCam-metal-adhoc.ipa
 
       - uses: actions/upload-artifact@v4
