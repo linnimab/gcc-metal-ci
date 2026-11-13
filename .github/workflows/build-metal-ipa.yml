@@ -8,7 +8,11 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-14, macos-13, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     env:
       APP_NAME: GoodColorCam
@@ -174,7 +178,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ios-metal-ipa
+          name: ios-metal-ipa-${{ matrix.os }}
           path: |
             GoodColorCam-metal-unsigned.ipa
             GoodColorCam-metal-adhoc.ipa
@@ -185,9 +189,10 @@ jobs:
       - name: Publish to Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MATRIX_OS: ${{ matrix.os }}
         run: |
           set -e
-          TAG="metal-$(echo ${{ github.sha }} | cut -c1-7)"
+          TAG="metal-$(echo ${{ github.sha }} | cut -c1-7)-${MATRIX_OS}"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" \
             GoodColorCam-metal-unsigned.ipa \
