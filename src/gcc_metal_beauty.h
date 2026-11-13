@@ -164,7 +164,7 @@ typedef struct {
 - (void)setFaceLandmarks:(const float *)points count:(int)count;
 - (void)setFaceMaskConfidence:(float)confidence;
 - (void)setFilterV2:(int)filterIndex;
-- (void)loadFlowField:(UIImage *)flowImage mask:(UIImage *)maskImage;
+- (void)loadFlowField:(id)flowImage mask:(id)maskImage;  // UIImage *（头里不做 UIKit 依赖）
 
 // 运行时诊断：返回当前状态（网格数、贴图数、shader 编译情况）
 // 切换当前激活的妆角色号（role = effect_slots.h 里的 tag，如 "Lips_Female_ds"）
